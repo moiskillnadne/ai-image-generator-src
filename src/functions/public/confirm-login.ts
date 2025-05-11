@@ -1,8 +1,8 @@
 // src/functions/public/confirm-login.ts
 import {
   CognitoIdentityProviderClient,
-  RespondToAuthChallengeCommand,
   AdminGetUserCommand,
+  AdminRespondToAuthChallengeCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
@@ -26,7 +26,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       };
     }
 
-    const challengeResponse = await cognito.send(new RespondToAuthChallengeCommand({
+    const challengeResponse = await cognito.send(new AdminRespondToAuthChallengeCommand({
+      UserPoolId: USER_POOL_ID,
       ChallengeName: 'CUSTOM_CHALLENGE',
       ClientId: CLIENT_ID,
       ChallengeResponses: {
