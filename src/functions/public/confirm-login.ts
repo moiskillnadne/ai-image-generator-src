@@ -4,8 +4,8 @@ import {
   AdminGetUserCommand,
   AdminRespondToAuthChallengeCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 
 const cognito = new CognitoIdentityProviderClient({});
 const dynamo = new DynamoDBClient({});
@@ -26,6 +26,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       };
     }
 
+    console.log(`[ConfirmLogin] Email: ${email}, Code: ${code}, Session: ${session}`);
+
     const challengeResponse = await cognito.send(new AdminRespondToAuthChallengeCommand({
       UserPoolId: USER_POOL_ID,
       ChallengeName: 'CUSTOM_CHALLENGE',
@@ -36,6 +38,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       },
       Session: session,
     }));
+
+    console.log(`[ConfirmLogin] Challenge Response: ${JSON.stringify(challengeResponse)}`);
 
     if (!challengeResponse.AuthenticationResult) {
       return {
@@ -51,6 +55,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     const userId = userData.UserAttributes?.find(attr => attr.Name === 'sub')?.Value;
 
+    console.log(`[ConfirmLogin] User ID: ${userId}`);
+
     if (!userId) {
       throw new Error('Unable to retrieve user ID (sub) from Cognito');
     }
@@ -63,7 +69,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         createdAt: { S: new Date().toISOString() },
       },
       ConditionExpression: 'attribute_not_exists(pk)',
-    }));
+    })).catch((error) => {
+      if (error.name !== 'ConditionalCheckFailedException') {
+        console.error('[ConfirmLogin] Error saving user to DynamoDB:', error);
+        throw error;
+      }
+      console.log('[ConfirmLogin] User already exists in DynamoDB, skipping save');
+    })
 
     return {
       statusCode: 200,
